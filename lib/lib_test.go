@@ -24,7 +24,7 @@ func BenchmarkFile(b *testing.B) {
 }
 
 func TestGhp(t *testing.T) {
-	var x = "x-access-token:ghs_AdaGKovxmLGZHQMsftohieNXoSELBv10vtId"
+	var x = "x-access-token:ghp_1234567890"
 	e := lib.GithubRegex.FindAllString(x, -1)
 	t.Logf("%v", e)
 }
