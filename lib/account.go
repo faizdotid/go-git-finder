@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 )
@@ -38,6 +39,7 @@ func (g *GithubTokenValidator) Validate(token string) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == 200 {
+		fmt.Printf("[ %sVALID%s ] - %s%s%s\n", Green, Reset, Blue, token, Reset)
 		_, err = g.valid.WriteString(token + "\n")
 		if err != nil {
 			PrintErr(err)
