@@ -10,7 +10,7 @@ Go Git Finder is a tool designed to scan exposed **.git** URLs.
 
 ### Using source code
 ```bash
-go run main.go -f yourfile.txt -t 10
+go run cmd/main.go -f yourfile.txt -t 10
 ```
 
 ### Compile your own binary file
