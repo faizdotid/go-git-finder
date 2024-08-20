@@ -23,7 +23,7 @@ func NewGithubTokenValidator() *GithubTokenValidator {
 	}
 }
 
-func (g *GithubTokenValidator) Validate(token string) {
+func (g *GithubTokenValidator) Validate(url, token string) {
 	_, err := g.all.WriteString(token + "\n")
 	if err != nil {
 		PrintErr(err)
@@ -48,7 +48,7 @@ func (g *GithubTokenValidator) Validate(token string) {
 
 	if resp.StatusCode == 200 {
 		fmt.Printf("[ %sVALID%s ] - %s%s%s\n", Green, Reset, Blue, token, Reset)
-		_, err = g.valid.WriteString(token + "\n")
+		_, err = g.valid.WriteString(url + "|" + token + "\n")
 		if err != nil {
 			PrintErr(err)
 		}

@@ -73,7 +73,7 @@ func (s *Scanner) Scan(url string, wg *sync.WaitGroup, g *GithubTokenValidator) 
 	}
 	tokens := GithubRegex.FindAllString(string(buf), -1)
 	for _, token := range tokens {
-		g.Validate(token)
+		g.Validate(url, token)
 	}
 
 	if len(tokens) > 0 {
