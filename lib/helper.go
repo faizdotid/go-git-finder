@@ -15,8 +15,8 @@ func RecoverIfError() {
 func PrintErr(err error) {
 	if err != nil {
 		fmt.Printf(
-			"[ %sERR%s ] - %s\n",
-			Red, Reset, err.Error(),
+			"[ %sERR%s ] - %s%s%s\n",
+			Red, Reset, Red, err, Reset,
 		)
 	}
 }

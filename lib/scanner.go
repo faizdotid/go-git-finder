@@ -76,18 +76,30 @@ func (s *Scanner) Scan(url string, wg *sync.WaitGroup, g *GithubTokenValidator) 
 		g.Validate(token)
 	}
 
-	fmt.Printf(
-		"[ %s%s%s ] - [ %s%d%s ] - %s%s%s\n",
-		Green,
-		sCode,
-		Reset,
-		Green,
-		len(tokens),
-		Reset,
-		Blue,
-		url,
-		Reset,
-	)
+	if len(tokens) > 0 {
+		fmt.Printf(
+			"[ %s%s%s ] - [ %s%d%s ] - %s%s%s\n",
+			Green,
+			sCode,
+			Reset,
+			Green,
+			len(tokens),
+			Reset,
+			Blue,
+			url,
+			Reset,
+		)
+	} else {
+		fmt.Printf(
+			"[ %s%s%s ] - %s%s%s\n",
+			Green,
+			sCode,
+			Reset,
+			Blue,
+			url,
+			Reset,
+		)
+	}
 }
 
 func (s *Scanner) Run(thread int) {

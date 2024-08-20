@@ -19,21 +19,29 @@ func NewGithubTokenValidator() *GithubTokenValidator {
 	return &GithubTokenValidator{
 		all:   all,
 		valid: valid,
+		c:     http.DefaultClient,
 	}
 }
 
 func (g *GithubTokenValidator) Validate(token string) {
-	req, err := http.NewRequest("GET", "https://api.github.com/user", nil)
+	_, err := g.all.WriteString(token + "\n")
 	if err != nil {
 		PrintErr(err)
 	}
 
-	req.Header.Set("Authorization", "token "+token)
+	req, err := http.NewRequest("GET", "https://api.github.com/user", nil)
+	if err != nil {
+		PrintErr(err)
+		return
+	}
+
+	req.Header.Set("Authorization", " Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
 	resp, err := g.c.Do(req)
 	if err != nil {
+		PrintErr(err)
 		return
 	}
 	defer resp.Body.Close()
@@ -46,10 +54,6 @@ func (g *GithubTokenValidator) Validate(token string) {
 		}
 	}
 
-	_, err = g.all.WriteString(token + "\n")
-	if err != nil {
-		PrintErr(err)
-	}
 }
 
 // closing the files
