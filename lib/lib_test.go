@@ -1,30 +1,50 @@
 package lib_test
 
 import (
-	"bufio"
-	"go-git-finder/lib"
-	"os"
 	"testing"
+
+	"go-git-finder/lib"
 )
 
-func BenchmarkFile(b *testing.B) {
-	file, err := os.OpenFile("test.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		b.Error(err)
+func TestGithubRegex(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected int
+	}{
+		{"classic PAT", "x-access-token:ghp_1234567890abcdef1234567890abcdef123456", 1},
+		{"no token", "no token here", 0},
+		{"fine-grained PAT", "token: github_pat_11ABCDEF0_xyz1234567890123456789012345678", 1},
+		{"oauth token", "gho_abcdefghijklmnopqrstuvwxyz1234", 1},
 	}
-	defer file.Close()
-	writer := bufio.NewWriterSize(file, 1024*1024)
 
-	for i := 0; i < b.N; i++ {
-
-		writer.AvailableBuffer()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			matches := lib.GithubRegex.FindAllString(tt.input, -1)
+			if len(matches) != tt.expected {
+				t.Errorf("expected %d matches, got %d for input %q", tt.expected, len(matches), tt.input)
+			}
+		})
 	}
-	writer.Flush()
-
 }
 
-func TestGhp(t *testing.T) {
-	var x = "x-access-token:ghp_1234567890"
-	e := lib.GithubRegex.FindAllString(x, -1)
-	t.Logf("%v", e)
+func TestParseURL(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"example.com", "http://example.com/.git/config"},
+		{"https://example.com/", "https://example.com/.git/config"},
+		{"  http://test.com  ", "http://test.com/.git/config"},
+		{"", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := lib.ParseURL(tt.input)
+			if got != tt.expected {
+				t.Errorf("ParseURL(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
 }

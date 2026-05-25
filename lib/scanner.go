@@ -1,126 +1,109 @@
 package lib
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
-func NewScanner(c []string) *Scanner {
-	file, err := os.OpenFile(
-		"results/git-config.txt",
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0644,
-	)
+// NewScanner creates a Scanner with a buffered result writer.
+func NewScanner(urls []string) (*Scanner, error) {
+	writer, err := NewResultWriter("results/git-config.txt")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	return &Scanner{
-		urls: c,
-		c: &http.Client{
+		urls: urls,
+		client: &http.Client{
 			Timeout: 10 * time.Second,
 			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
-				},
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			},
 		},
-		f: file,
-	}
+		writer: writer,
+	}, nil
 }
 
-func (s *Scanner) Scan(url string, wg *sync.WaitGroup, g *GithubTokenValidator) {
-	defer wg.Done()
+// Close flushes and closes the underlying writer.
+func (s *Scanner) Close() error {
+	return s.writer.Close()
+}
 
-	resp, err := s.c.Get(url)
+// Run starts a worker pool and processes all URLs.
+func (s *Scanner) Run(workers int, g *GithubTokenValidator) error {
+	defer s.Close()
+	defer g.Close()
+
+	jobs := make(chan string, workers)
+	var wg sync.WaitGroup
+	ctx := context.Background()
+
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for url := range jobs {
+				s.scanURL(ctx, url, g)
+			}
+		}()
+	}
+
+	for _, url := range s.urls {
+		jobs <- url
+	}
+	close(jobs)
+	wg.Wait()
+	return nil
+}
+
+func (s *Scanner) scanURL(ctx context.Context, url string, g *GithubTokenValidator) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		PrintErr(err)
+		return
+	}
+
+	resp, err := s.client.Do(req)
 	if err != nil {
 		PrintErr(err)
 		return
 	}
 	defer resp.Body.Close()
 
-	buf, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		PrintErr(err)
-	}
-	sCode := strconv.Itoa(resp.StatusCode)
-
-	if !strings.Contains(
-		string(buf),
-		"[core]",
-	) {
-		//PRINT NOT VALID .GIT
-		fmt.Printf(
-			"[ %s%s%s ] - %s%s%s\n",
-			Yellow,
-			sCode,
-			Reset,
-			Blue,
-			url,
-			Reset,
-		)
 		return
 	}
-	_, err = s.f.WriteString(url + "\n")
-	if err != nil {
+
+	statusCode := resp.StatusCode
+	bodyStr := string(body)
+
+	if !strings.Contains(bodyStr, "[core]") {
+		fmt.Printf("[ %s%d%s ] - %s%s%s\n", Yellow, statusCode, Reset, Blue, url, Reset)
+		return
+	}
+
+	if err := s.writer.WriteLine(url); err != nil {
 		PrintErr(err)
 	}
-	tokens := GithubRegex.FindAllString(string(buf), -1)
+
+	tokens := GithubRegex.FindAllString(bodyStr, -1)
 	for _, token := range tokens {
-		g.Validate(url, token)
+		g.Validate(ctx, url, token)
 	}
 
 	if len(tokens) > 0 {
-		fmt.Printf(
-			"[ %s%s%s ] - [ %s%d%s ] - %s%s%s\n",
-			Green,
-			sCode,
-			Reset,
-			Green,
-			len(tokens),
-			Reset,
-			Blue,
-			url,
-			Reset,
-		)
+		fmt.Printf("[ %s%d%s ] - [ %s%d tokens%s ] - %s%s%s\n",
+			Green, statusCode, Reset,
+			Green, len(tokens), Reset,
+			Blue, url, Reset)
 	} else {
-		fmt.Printf(
-			"[ %s%s%s ] - %s%s%s\n",
-			Green,
-			sCode,
-			Reset,
-			Blue,
-			url,
-			Reset,
-		)
+		fmt.Printf("[ %s%d%s ] - %s%s%s\n", Green, statusCode, Reset, Blue, url, Reset)
 	}
-}
-
-func (s *Scanner) Run(thread int) {
-	// make sure to close the file
-	defer s.f.Close()
-
-	// make sure to close the file
-	g := NewGithubTokenValidator()
-	defer g.Close()
-
-	// create a wait group
-	var wg sync.WaitGroup
-
-	threadChannel := make(chan struct{}, thread)
-	for _, url := range s.urls {
-		wg.Add(1)
-		threadChannel <- struct{}{}
-		go func(url string) {
-			s.Scan(url, &wg, g)
-			<-threadChannel
-		}(url)
-	}
-	wg.Wait()
 }

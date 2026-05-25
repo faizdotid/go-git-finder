@@ -1,17 +1,15 @@
 package lib
 
-import (
-	"strings"
-)
+import "strings"
 
-func ParseURL(rawUrl string) string {
-	url := strings.TrimSpace(rawUrl) // remove leading and trailing spaces
-
-	if !strings.Contains(url, "http") {
-		url = "http://" + url
+// ParseURL normalizes a raw URL and appends the .git/config path.
+func ParseURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
 	}
-
-	url = strings.TrimSuffix(url, "/")
-
-	return url + "/.git/config"
+	if !strings.HasPrefix(raw, "http://") && !strings.HasPrefix(raw, "https://") {
+		raw = "http://" + raw
+	}
+	return strings.TrimSuffix(raw, "/") + "/.git/config"
 }

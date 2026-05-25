@@ -1,2 +1,11 @@
-test.txt
 results/
+go-git-finder
+*.exe
+*.out
+*.dll
+*.so
+*.dylib
+
+# IDE
+.idea/
+.vscode/

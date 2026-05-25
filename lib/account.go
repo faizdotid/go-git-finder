@@ -1,63 +1,67 @@
 package lib
 
 import (
+	"context"
 	"fmt"
 	"net/http"
-	"os"
 )
 
-func NewGithubTokenValidator() *GithubTokenValidator {
-	all, err := os.OpenFile("results/tokens.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+// NewGithubTokenValidator creates a validator with buffered writers.
+func NewGithubTokenValidator() (*GithubTokenValidator, error) {
+	all, err := NewResultWriter("results/tokens.txt")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	valid, err := os.OpenFile("results/valid-tokens.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	valid, err := NewResultWriter("results/valid-tokens.txt")
 	if err != nil {
-		panic(err)
+		all.Close()
+		return nil, err
 	}
-
 	return &GithubTokenValidator{
-		all:   all,
-		valid: valid,
-		c:     http.DefaultClient,
-	}
+		all:    all,
+		valid:  valid,
+		client: http.DefaultClient,
+	}, nil
 }
 
-func (g *GithubTokenValidator) Validate(url, token string) {
-	_, err := g.all.WriteString(token + "\n")
-	if err != nil {
+// Close flushes and closes both underlying writers.
+func (g *GithubTokenValidator) Close() error {
+	err1 := g.all.Close()
+	err2 := g.valid.Close()
+	if err1 != nil {
+		return err1
+	}
+	return err2
+}
+
+// Validate checks a GitHub token against the GitHub API.
+func (g *GithubTokenValidator) Validate(ctx context.Context, url, token string) {
+	if err := g.all.WriteLine(token); err != nil {
 		PrintErr(err)
+		return
 	}
 
-	req, err := http.NewRequest("GET", "https://api.github.com/user", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user", nil)
 	if err != nil {
 		PrintErr(err)
 		return
 	}
 
-	req.Header.Set("Authorization", " Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
-	resp, err := g.c.Do(req)
+	resp, err := g.client.Do(req)
 	if err != nil {
 		PrintErr(err)
 		return
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == 200 {
+	if resp.StatusCode == http.StatusOK {
 		fmt.Printf("[ %sVALID%s ] - %s%s%s\n", Green, Reset, Blue, token, Reset)
-		_, err = g.valid.WriteString(url + "|" + token + "\n")
-		if err != nil {
+		if err := g.valid.WriteLine(url + "|" + token); err != nil {
 			PrintErr(err)
 		}
 	}
-
-}
-
-// closing the files
-func (g *GithubTokenValidator) Close() {
-	g.all.Close()
-	g.valid.Close()
 }

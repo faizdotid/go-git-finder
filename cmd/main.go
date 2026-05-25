@@ -1,65 +1,58 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"go-git-finder/lib"
-	"log"
 	"os"
-	"strings"
 )
 
-func createResultFolder() {
-	if _, err := os.Stat("results"); os.IsNotExist(err) {
-		os.Mkdir("results", 0755)
-	}
-}
-
 func main() {
-	createResultFolder() // creating results folder
 	filename := flag.String("f", "", "File containing urls to scan")
 	threads := flag.Int("t", 10, "Number of threads to use")
 	flag.Parse()
+
 	if *filename == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
-	buf, err := os.ReadFile(*filename)
+
+	f, err := os.Open(*filename)
 	if err != nil {
-		log.Fatalf("Error reading file: %s", err)
+		fmt.Fprintf(os.Stderr, "Error opening file: %s\n", err)
+		os.Exit(1)
 	}
+	defer f.Close()
 
-	// creata a slice of urls
-	urls := make([]string, 0, len(strings.Split(string(buf), "\n")))
-	for _, url := range strings.Split(string(buf), "\n") {
-		if url == "" {
-			continue
+	var urls []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		if url := lib.ParseURL(scanner.Text()); url != "" {
+			urls = append(urls, url)
 		}
-		urls = append(urls, lib.ParseURL(url))
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading file: %s\n", err)
+		os.Exit(1)
 	}
 
-	fmt.Printf(`%s
-█▀▀ █ ▀█▀ ▄▄ █▀▀ █ █▄░█ █▀▄ █▀▀ █▀█
-█▄█ █ ░█░ ░░ █▀░ █ █░▀█ █▄▀ ██▄ █▀▄%s
-%sScanning %s%d%s urls with %s%d%s threads%s
+	lib.PrintBanner(len(urls), *threads)
 
-`,
-		lib.Blue,
-		lib.Reset,
-		lib.White,
-		lib.Blue,
-		len(urls),
-		lib.White,
-		lib.Blue,
-		*threads,
-		lib.White,
-		lib.Reset,
-	)
+	s, err := lib.NewScanner(urls)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating scanner: %s\n", err)
+		os.Exit(1)
+	}
 
-	// create a file to write the results
-	
+	g, err := lib.NewGithubTokenValidator()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating validator: %s\n", err)
+		os.Exit(1)
+	}
 
-	// create a scanner
-	scanner := lib.NewScanner(urls)
-	scanner.Run(*threads)
+	if err := s.Run(*threads, g); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		os.Exit(1)
+	}
 }

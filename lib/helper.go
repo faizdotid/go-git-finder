@@ -2,21 +2,33 @@ package lib
 
 import (
 	"fmt"
+	"os"
 )
 
-func RecoverIfError() {
-	defer func() {
-		if r := recover(); r != nil {
-			PrintErr(fmt.Errorf("%v", r))
-		}
-	}()
-}
-
+// PrintErr prints an error message to stderr.
 func PrintErr(err error) {
 	if err != nil {
-		fmt.Printf(
-			"[ %sERR%s ] - %s%s%s\n",
-			Red, Reset, Red, err, Reset,
-		)
+		fmt.Fprintf(os.Stderr, "[ %sERR%s ] - %s%s%s\n", Red, Reset, Red, err, Reset)
 	}
+}
+
+// PrintBanner displays the scanner banner.
+func PrintBanner(urls, threads int) {
+	fmt.Printf(`%s
+	█▀▀ █ ▀█▀ ▄▄ █▀▀ █ █▄░█ █▀▄ █▀▀ █▀█
+	█▄█ █ ░█░ ░░ █▀░ █ █░▀█ █▄▀ ██▄ █▀▄%s
+	%sScanning %s%d%s urls with %s%d%s threads%s
+
+`,
+		Blue,
+		Reset,
+		White,
+		Blue,
+		urls,
+		White,
+		Blue,
+		threads,
+		White,
+		Reset,
+	)
 }
