@@ -2,8 +2,10 @@ package lib
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"time"
 )
 
 // NewGithubTokenValidator creates a validator with buffered writers.
@@ -18,20 +20,17 @@ func NewGithubTokenValidator() (*GithubTokenValidator, error) {
 		return nil, err
 	}
 	return &GithubTokenValidator{
-		all:    all,
-		valid:  valid,
-		client: http.DefaultClient,
+		all:   all,
+		valid: valid,
+		client: &http.Client{
+			Timeout: 10 * time.Second,
+		},
 	}, nil
 }
 
 // Close flushes and closes both underlying writers.
 func (g *GithubTokenValidator) Close() error {
-	err1 := g.all.Close()
-	err2 := g.valid.Close()
-	if err1 != nil {
-		return err1
-	}
-	return err2
+	return errors.Join(g.all.Close(), g.valid.Close())
 }
 
 // Validate checks a GitHub token against the GitHub API.

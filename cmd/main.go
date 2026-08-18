@@ -27,6 +27,7 @@ func main() {
 
 	var urls []string
 	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for scanner.Scan() {
 		if url := lib.ParseURL(scanner.Text()); url != "" {
 			urls = append(urls, url)
@@ -44,6 +45,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error creating scanner: %s\n", err)
 		os.Exit(1)
 	}
+	defer s.Close()
 
 	g, err := lib.NewGithubTokenValidator()
 	if err != nil {

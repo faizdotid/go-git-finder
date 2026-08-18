@@ -37,7 +37,13 @@ func (s *Scanner) Close() error {
 // Run starts a worker pool and processes all URLs.
 func (s *Scanner) Run(workers int, g *GithubTokenValidator) error {
 	defer s.Close()
-	defer g.Close()
+	if g != nil {
+		defer g.Close()
+	}
+
+	if workers < 1 {
+		workers = 1
+	}
 
 	jobs := make(chan string, workers)
 	var wg sync.WaitGroup
@@ -75,7 +81,7 @@ func (s *Scanner) scanURL(ctx context.Context, url string, g *GithubTokenValidat
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
 	if err != nil {
 		PrintErr(err)
 		return
@@ -94,8 +100,10 @@ func (s *Scanner) scanURL(ctx context.Context, url string, g *GithubTokenValidat
 	}
 
 	tokens := GithubRegex.FindAllString(bodyStr, -1)
-	for _, token := range tokens {
-		g.Validate(ctx, url, token)
+	if g != nil {
+		for _, token := range tokens {
+			g.Validate(ctx, url, token)
+		}
 	}
 
 	if len(tokens) > 0 {
