@@ -2,8 +2,10 @@ package lib
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 )
@@ -58,8 +60,20 @@ func (g *GithubTokenValidator) Validate(ctx context.Context, url, token string) 
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		fmt.Printf("[ %sVALID%s ] - %s%s%s\n", Green, Reset, Blue, token, Reset)
-		if err := g.valid.WriteLine(url + "|" + token); err != nil {
+		var user struct {
+			Login string `json:"login"`
+		}
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		if err != nil {
+			PrintErr(err)
+			return
+		}
+		if err := json.Unmarshal(body, &user); err != nil {
+			PrintErr(err)
+			return
+		}
+		fmt.Printf("[ %sVALID%s ] - %s%s%s ( %s%s%s )\n", Green, Reset, Blue, token, Reset, Green, user.Login, Reset)
+		if err := g.valid.WriteLine(url + "|" + token + ":" + user.Login); err != nil {
 			PrintErr(err)
 		}
 	}
