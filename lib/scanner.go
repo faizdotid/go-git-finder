@@ -3,6 +3,7 @@ package lib
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -35,11 +36,13 @@ func (s *Scanner) Close() error {
 }
 
 // Run starts a worker pool and processes all URLs.
-func (s *Scanner) Run(workers int, g *GithubTokenValidator) error {
-	defer s.Close()
-	if g != nil {
-		defer g.Close()
-	}
+func (s *Scanner) Run(workers int, g *GithubTokenValidator) (err error) {
+	defer func() {
+		if g != nil {
+			err = errors.Join(err, g.Close())
+		}
+		err = errors.Join(err, s.Close())
+	}()
 
 	if workers < 1 {
 		workers = 1
@@ -47,6 +50,8 @@ func (s *Scanner) Run(workers int, g *GithubTokenValidator) error {
 
 	jobs := make(chan string, workers)
 	var wg sync.WaitGroup
+	var errOnce sync.Once
+	var runErr error
 	ctx := context.Background()
 
 	for i := 0; i < workers; i++ {
@@ -54,7 +59,9 @@ func (s *Scanner) Run(workers int, g *GithubTokenValidator) error {
 		go func() {
 			defer wg.Done()
 			for url := range jobs {
-				s.scanURL(ctx, url, g)
+				if err := s.scanURL(ctx, url, g); err != nil {
+					errOnce.Do(func() { runErr = err })
+				}
 			}
 		}()
 	}
@@ -64,27 +71,27 @@ func (s *Scanner) Run(workers int, g *GithubTokenValidator) error {
 	}
 	close(jobs)
 	wg.Wait()
-	return nil
+	return runErr
 }
 
-func (s *Scanner) scanURL(ctx context.Context, url string, g *GithubTokenValidator) {
+func (s *Scanner) scanURL(ctx context.Context, url string, g *GithubTokenValidator) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		PrintErr(err)
-		return
+		return nil
 	}
 
 	resp, err := s.client.Do(req)
 	if err != nil {
 		PrintErr(err)
-		return
+		return nil
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
 	if err != nil {
 		PrintErr(err)
-		return
+		return nil
 	}
 
 	statusCode := resp.StatusCode
@@ -92,17 +99,19 @@ func (s *Scanner) scanURL(ctx context.Context, url string, g *GithubTokenValidat
 
 	if !strings.Contains(bodyStr, "[core]") {
 		fmt.Printf("[ %s%d%s ] - %s%s%s\n", Yellow, statusCode, Reset, Blue, url, Reset)
-		return
+		return nil
 	}
 
 	if err := s.writer.WriteLine(url); err != nil {
-		PrintErr(err)
+		return err
 	}
 
 	tokens := GithubRegex.FindAllString(bodyStr, -1)
 	if g != nil {
 		for _, token := range tokens {
-			g.Validate(ctx, url, token)
+			if err := g.Validate(ctx, url, token); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -114,4 +123,5 @@ func (s *Scanner) scanURL(ctx context.Context, url string, g *GithubTokenValidat
 	} else {
 		fmt.Printf("[ %s%d%s ] - %s%s%s\n", Green, statusCode, Reset, Blue, url, Reset)
 	}
+	return nil
 }

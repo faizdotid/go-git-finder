@@ -11,6 +11,7 @@ import (
 func main() {
 	filename := flag.String("f", "", "File containing urls to scan")
 	threads := flag.Int("t", 10, "Number of threads to use")
+	proxy := flag.String("proxy", "", "Proxy URL for GitHub token validation")
 	flag.Parse()
 
 	if *filename == "" {
@@ -45,10 +46,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error creating scanner: %s\n", err)
 		os.Exit(1)
 	}
-	defer s.Close()
 
-	g, err := lib.NewGithubTokenValidator()
+	g, err := lib.NewGithubTokenValidator(*proxy)
 	if err != nil {
+		_ = s.Close()
 		fmt.Fprintf(os.Stderr, "Error creating validator: %s\n", err)
 		os.Exit(1)
 	}

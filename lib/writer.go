@@ -2,6 +2,7 @@ package lib
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,12 +19,20 @@ type ResultWriter struct {
 // NewResultWriter creates a buffered writer for the given path.
 func NewResultWriter(path string) (*ResultWriter, error) {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("mkdir: %w", err)
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if dir != "." {
+		if err := os.Chmod(dir, 0o700); err != nil {
+			return nil, fmt.Errorf("chmod directory: %w", err)
+		}
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("open file: %w", err)
+	}
+	if err := f.Chmod(0o600); err != nil {
+		return nil, errors.Join(fmt.Errorf("chmod file: %w", err), f.Close())
 	}
 	return &ResultWriter{
 		file:   f,
@@ -43,9 +52,5 @@ func (rw *ResultWriter) WriteLine(line string) error {
 func (rw *ResultWriter) Close() error {
 	rw.mu.Lock()
 	defer rw.mu.Unlock()
-	if err := rw.writer.Flush(); err != nil {
-		_ = rw.file.Close()
-		return err
-	}
-	return rw.file.Close()
+	return errors.Join(rw.writer.Flush(), rw.file.Close())
 }

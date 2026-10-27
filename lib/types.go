@@ -14,9 +14,10 @@ type Scanner struct {
 
 // GithubTokenValidator checks extracted GitHub tokens against the API.
 type GithubTokenValidator struct {
-	all    *ResultWriter
-	valid  *ResultWriter
-	client *http.Client
+	all        *ResultWriter
+	valid      *ResultWriter
+	client     *http.Client
+	retryProxy bool
 }
 
 // GithubRegex matches personal access tokens and OAuth tokens.

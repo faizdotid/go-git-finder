@@ -22,3 +22,4 @@ go build cmd/main.go
 ### Options
 - `-f`: Yourfile include URLs
 - `-t`: Threads
+- `-proxy`: Optional proxy URL (for example `http://127.0.0.1:8080`) used only for GitHub token validation. Failed proxy connections are retried up to 3 times.
